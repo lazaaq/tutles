@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
+import 'blur_editor_page.dart';
 import 'border_editor_page.dart';
+import 'collage_editor_page.dart';
 import 'gallery.dart';
 import 'picker_page.dart';
 import 'settings.dart';
@@ -15,28 +17,68 @@ class Feature {
   final void Function(BuildContext context, GallerySource source) open;
 }
 
-/// Bingkai: pilih foto -> editor -> simpan.
-void openBorder(BuildContext context, GallerySource source) {
+/// Pilih foto -> editor dari [editor] -> simpan. Pilihan dikosongkan bila editor selesai `true`.
+void _pickThenEdit(
+  BuildContext context,
+  GallerySource source,
+  String title,
+  Future<Widget> Function(List<Photo> photos) editor, {
+  String? Function(List<Photo> photos)? check,
+}) {
   Navigator.of(context).push(MaterialPageRoute(
     builder: (_) => PickerPage(
-      title: 'Bingkai',
+      title: title,
       source: source,
       onNext: (ctx, photos) async {
-        final border = await BorderSettings.load();
-        final save = await SaveSettings.load();
+        final problem = check?.call(photos);
+        if (problem != null) {
+          ScaffoldMessenger.of(ctx)
+            ..hideCurrentSnackBar()
+            ..showSnackBar(SnackBar(content: Text(problem)));
+          return false;
+        }
+        final page = await editor(photos);
         if (!ctx.mounted) return false;
-        final done = await Navigator.of(ctx).push<bool>(MaterialPageRoute(
-          fullscreenDialog: true,
-          builder: (_) => BorderEditorPage(photos: photos, source: source, initial: border, save: save),
-        ));
+        final done = await Navigator.of(ctx).push<bool>(MaterialPageRoute(fullscreenDialog: true, builder: (_) => page));
         return done == true;
       },
     ),
   ));
 }
 
+/// Bingkai: semua foto memakai bingkai yang sama.
+void openBorder(BuildContext context, GallerySource source) => _pickThenEdit(context, source, 'Bingkai', (photos) async {
+      final border = await BorderSettings.load();
+      final save = await SaveSettings.load();
+      return BorderEditorPage(photos: photos, source: source, initial: border, save: save);
+    });
+
+/// Blur: usap area yang ingin di-blur, tiap foto sendiri-sendiri.
+void openBlur(BuildContext context, GallerySource source) => _pickThenEdit(context, source, 'Blur', (photos) async {
+      final blur = await BlurSettings.load();
+      final save = await SaveSettings.load();
+      return BlurEditorPage(photos: photos, source: source, initial: blur, save: save);
+    });
+
+/// Kolase: 2..5 foto menjadi satu foto baru.
+void openCollage(BuildContext context, GallerySource source) => _pickThenEdit(
+      context,
+      source,
+      'Kolase',
+      (photos) async {
+        final collage = await CollageSettings.load();
+        final save = await SaveSettings.load();
+        return CollageEditorPage(photos: photos, source: source, initial: collage, save: save);
+      },
+      check: (photos) => photos.length < 2
+          ? 'Pilih minimal 2 foto untuk kolase.'
+          : (photos.length > 5 ? 'Kolase paling banyak 5 foto.' : null),
+    );
+
 final kFeatures = <Feature>[
   const Feature('Bingkai', Icons.filter_frames, Colors.green, openBorder),
+  const Feature('Blur', Icons.blur_on, Colors.blue, openBlur),
+  const Feature('Kolase', Icons.dashboard, Colors.orange, openCollage),
 ];
 
 /// Beranda: ikon kecil berjajar untuk setiap fitur.

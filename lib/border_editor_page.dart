@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'border.dart';
 import 'gallery.dart';
 import 'process_page.dart';
+import 'save_sheet.dart';
 import 'settings.dart';
 
 enum _Tool { width, color, ratio }
@@ -42,77 +43,23 @@ class _BorderEditorPageState extends State<BorderEditorPage> {
   /// Opsi simpan, lalu proses semua foto.
   Future<void> _done() async {
     BorderSettings.save(_o);
-    final ok = await showModalBottomSheet<bool>(
-      context: context,
-      showDragHandle: true,
-      builder: (ctx) => StatefulBuilder(builder: (ctx, setSheet) {
-        void up(SaveSettings s) {
-          setSheet(() => _save = s);
-          s.save();
-        }
-
-        final n = widget.photos.length;
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
-          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Simpan $n foto berbingkai?', style: Theme.of(ctx).textTheme.titleLarge),
-            const SizedBox(height: 12),
-            Row(children: [
-              const Text('Kualitas'),
-              Expanded(
-                child: Slider(
-                  value: _save.quality.toDouble(),
-                  min: 50,
-                  max: 100,
-                  divisions: 50,
-                  label: '${_save.quality}',
-                  onChanged: (v) => setSheet(() => _save = SaveSettings(quality: v.round(), maxSide: _save.maxSide)),
-                  onChangeEnd: (_) => _save.save(),
-                ),
-              ),
-              SizedBox(width: 32, child: Text('${_save.quality}', textAlign: TextAlign.end)),
-            ]),
-            Row(children: [
-              const Text('Ukuran'),
-              const SizedBox(width: 12),
-              Expanded(
-                child: DropdownButton<int>(
-                  key: const ValueKey('save-size'),
-                  isExpanded: true,
-                  value: _save.maxSide,
-                  items: [
-                    for (final e in kSizeOptions.entries) DropdownMenuItem(value: e.key, child: Text(e.value)),
-                  ],
-                  onChanged: (v) => up(SaveSettings(quality: _save.quality, maxSide: v ?? _save.maxSide)),
-                ),
-              ),
-            ]),
-            const SizedBox(height: 4),
-            Text(
-              'Bingkai ${_o.color.label.toLowerCase()} ${_o.fractionLabel}'
-              '${_o.ratio == BorderRatio.original ? '' : ', rasio ${_o.ratio.label}'}. '
-              'Disimpan sebagai foto baru dengan format yang sama; foto asli tidak diubah.',
-              key: const ValueKey('save-summary'),
-              style: Theme.of(ctx).textTheme.bodySmall,
-            ),
-            const SizedBox(height: 16),
-            Row(children: [
-              Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal'))),
-              const SizedBox(width: 12),
-              Expanded(child: FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Simpan'))),
-            ]),
-          ]),
-        );
-      }),
+    final save = await showSaveSheet(
+      context,
+      title: 'Simpan ${widget.photos.length} foto berbingkai?',
+      summary: 'Bingkai ${_o.color.label.toLowerCase()} ${_o.fractionLabel}'
+          '${_o.ratio == BorderRatio.original ? '' : ', rasio ${_o.ratio.label}'}.',
+      initial: _save,
     );
-    if (ok != true || !mounted) return;
+    if (save == null || !mounted) return;
+    _save = save;
+    final border = _o.toMap();
     await Navigator.of(context).pushReplacement(
       MaterialPageRoute<void>(
         builder: (_) => ProcessPage(
           photos: widget.photos,
-          border: _o,
-          quality: _save.quality,
-          maxSide: _save.maxSide,
+          edits: (_) => {'border': border},
+          quality: save.quality,
+          maxSide: save.maxSide,
         ),
       ),
       result: true,
@@ -191,7 +138,7 @@ class _BorderEditorPageState extends State<BorderEditorPage> {
           ),
         _Tool.color => _strip([
             for (final c in BorderColor.values)
-              _Choice(
+              ChoiceTile(
                 key: ValueKey('border-color-${c.name}'),
                 label: c.label,
                 selected: _o.color == c,
@@ -209,7 +156,7 @@ class _BorderEditorPageState extends State<BorderEditorPage> {
           ]),
         _Tool.ratio => _strip([
             for (final r in BorderRatio.values)
-              _Choice(
+              ChoiceTile(
                 key: ValueKey('border-ratio-${r.name}'),
                 label: r.label,
                 selected: _o.ratio == r,
@@ -267,18 +214,23 @@ class _BorderEditorPageState extends State<BorderEditorPage> {
   }
 }
 
-class _Choice extends StatelessWidget {
-  const _Choice({super.key, required this.label, required this.selected, required this.onTap, required this.child});
+/// Pilihan bergambar dengan label di bawahnya; dipakai di strip alat editor.
+class ChoiceTile extends StatelessWidget {
+  const ChoiceTile({super.key, required this.label, required this.selected, required this.onTap, required this.child});
 
   final String label;
   final bool selected;
-  final VoidCallback onTap;
+
+  /// null = tidak bisa dipilih (ditampilkan redup).
+  final VoidCallback? onTap;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    return InkWell(
+    return Opacity(
+      opacity: onTap == null ? 0.35 : 1,
+      child: InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
       child: Container(
@@ -298,6 +250,7 @@ class _Choice extends StatelessWidget {
             style: Theme.of(context).textTheme.labelSmall?.copyWith(color: selected ? scheme.primary : null),
           ),
         ]),
+      ),
       ),
     );
   }

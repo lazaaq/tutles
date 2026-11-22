@@ -26,7 +26,8 @@ abstract class GallerySource {
   /// Foto ke [start] sampai sebelum [end], terbaru dulu.
   Future<List<Photo>> load(int start, int end);
 
-  Widget image(Photo photo, {required int size, BoxFit fit = BoxFit.cover});
+  /// [alignment]: bagian yang terlihat bila [fit] memotong foto.
+  Widget image(Photo photo, {required int size, BoxFit fit = BoxFit.cover, Alignment alignment = Alignment.center});
 }
 
 /// Galeri asli lewat photo_manager.
@@ -73,7 +74,7 @@ class DeviceGallery implements GallerySource {
   }
 
   @override
-  Widget image(Photo photo, {required int size, BoxFit fit = BoxFit.cover}) {
+  Widget image(Photo photo, {required int size, BoxFit fit = BoxFit.cover, Alignment alignment = Alignment.center}) {
     final e = _entities[photo.id];
     if (e == null) return const ColoredBox(color: Color(0xFF555555));
     return AssetEntityImage(
@@ -81,6 +82,7 @@ class DeviceGallery implements GallerySource {
       isOriginal: false,
       thumbnailSize: ThumbnailSize.square(size),
       fit: fit,
+      alignment: alignment,
       gaplessPlayback: true,
       errorBuilder: (_, _, _) => const ColoredBox(color: Color(0xFF555555)),
     );

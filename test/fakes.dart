@@ -39,7 +39,7 @@ class FakeGallery implements GallerySource {
   }
 
   @override
-  Widget image(Photo photo, {required int size, BoxFit fit = BoxFit.cover}) =>
+  Widget image(Photo photo, {required int size, BoxFit fit = BoxFit.cover, Alignment alignment = Alignment.center}) =>
       ColoredBox(key: ValueKey('img-${photo.id}'), color: Colors.grey);
 }
 

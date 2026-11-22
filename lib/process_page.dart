@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'border.dart';
 import 'gallery.dart';
 import 'native.dart';
 
@@ -10,15 +9,21 @@ class ProcessPage extends StatefulWidget {
   const ProcessPage({
     super.key,
     required this.photos,
-    required this.border,
-    required this.quality,
-    required this.maxSide,
+    this.edits,
+    this.quality = 90,
+    this.maxSide = 0,
+    this.run,
   });
 
   final List<Photo> photos;
-  final BorderOptions border;
+
+  /// Edit untuk tiap foto, misalnya `{'border': …}` atau `{'blur': …}`.
+  final Map<String, Object> Function(Photo photo)? edits;
   final int quality;
   final int maxSide;
+
+  /// Pengganti `render` per foto (misalnya kolase: satu langkah untuk semua foto).
+  final Future<void> Function(Photo photo)? run;
 
   @override
   State<ProcessPage> createState() => _ProcessPageState();
@@ -41,12 +46,17 @@ class _ProcessPageState extends State<ProcessPage> {
     for (final p in widget.photos) {
       if (_cancel) break;
       try {
-        await TutlesNative.render(
-          p.id,
-          quality: widget.quality,
-          maxSide: widget.maxSide,
-          border: widget.border.toMap(),
-        );
+        final run = widget.run;
+        if (run != null) {
+          await run(p);
+        } else {
+          await TutlesNative.render(
+            p.id,
+            quality: widget.quality,
+            maxSide: widget.maxSide,
+            edits: widget.edits?.call(p) ?? const {},
+          );
+        }
         _ok++;
       } on PlatformException catch (e) {
         _failed.add((name: _name(p), error: e.message ?? e.code));
